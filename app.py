@@ -31,3 +31,10 @@ if uploaded_file:
 
     st.write("Shape:", report['shape'])
     st.write("Missing Values:", report['missing'])
+
+from modules.model_trainer import train_models
+
+if uploaded_file:
+    if st.button("Train Models"):
+        results = train_models(df)
+        st.write(results)
