@@ -3,6 +3,12 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
+from sklearn.decomposition import PCA
+
+def apply_pca(X, n=2):
+    pca = PCA(n_components=n)
+    X_pca = pca.fit_transform(X)
+    return X_pca
 
 def train_models(df):
     X = df.iloc[:, :-1]
