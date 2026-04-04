@@ -1,93 +1,109 @@
 import numpy as np
-import pandas as pd
-from sklearn.datasets import make_classification, make_regression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.svm import SVC
+from sklearn.linear_model import LogisticRegression
+from sklearn.naive_bayes import GaussianNB
+from sklearn.cluster import KMeans
 
-class SyntheticDataGenerator:
+class ModelRecommender:
     
     @staticmethod
-    def generate_classification(n_samples=1000, n_features=10, n_classes=2, 
-                                n_informative=8, random_state=42):
-        """Generate synthetic classification dataset"""
-        X, y = make_classification(
-            n_samples=n_samples,
-            n_features=n_features,
-            n_classes=n_classes,
-            n_informative=n_informative,
-            random_state=random_state
-        )
-        
-        # Create DataFrame
-        feature_cols = [f'feature_{i+1}' for i in range(n_features)]
-        df = pd.DataFrame(X, columns=feature_cols)
-        df['target'] = y
-        
-        return df
-    
-    @staticmethod
-    def generate_regression(n_samples=1000, n_features=10, noise=0.1, random_state=42):
-        """Generate synthetic regression dataset"""
-        X, y = make_regression(
-            n_samples=n_samples,
-            n_features=n_features,
-            noise=noise,
-            random_state=random_state
-        )
-        
-        feature_cols = [f'feature_{i+1}' for i in range(n_features)]
-        df = pd.DataFrame(X, columns=feature_cols)
-        df['target'] = y
-        
-        return df
-    
-    @staticmethod
-    def generate_custom(n_samples=500, feature_types=None, distributions=None):
+    def recommend(dataset_properties):
         """
-        Generate custom dataset with specified feature types and distributions
+        Recommend best ML model based on dataset properties
         
         Parameters:
-        - n_samples: number of rows
-        - feature_types: dict {'feature_name': 'numerical'/'categorical'}
-        - distributions: dict {'feature_name': {'type': 'normal', 'mean': 0, 'std': 1}}
+        dataset_properties: dict with keys:
+            - n_samples: number of samples
+            - n_features: number of features
+            - n_classes: number of classes (for classification)
+            - task_type: 'classification', 'regression', 'clustering'
+            - linearity: 'linear' or 'nonlinear' (estimated)
         """
-        data = {}
+        task_type = dataset_properties.get('task_type', 'classification')
+        n_samples = dataset_properties.get('n_samples', 1000)
+        n_features = dataset_properties.get('n_features', 10)
+        n_classes = dataset_properties.get('n_classes', 2)
+        linearity = dataset_properties.get('linearity', 'unknown')
         
-        if feature_types is None:
-            feature_types = {'feature_1': 'numerical', 'feature_2': 'numerical'}
+        recommendations = []
         
-        for feat_name, feat_type in feature_types.items():
-            if feat_type == 'numerical':
-                # Get distribution or use default normal
-                dist = distributions.get(feat_name, {}) if distributions else {}
-                dist_type = dist.get('type', 'normal')
-                
-                if dist_type == 'normal':
-                    mean = dist.get('mean', 0)
-                    std = dist.get('std', 1)
-                    data[feat_name] = np.random.normal(mean, std, n_samples)
-                elif dist_type == 'uniform':
-                    low = dist.get('low', -1)
-                    high = dist.get('high', 1)
-                    data[feat_name] = np.random.uniform(low, high, n_samples)
-                else:
-                    data[feat_name] = np.random.randn(n_samples)
-                    
-            elif feat_type == 'categorical':
-                categories = dist.get('categories', ['A', 'B', 'C']) if distributions else ['A', 'B']
-                probs = dist.get('probs', None) if distributions else None
-                data[feat_name] = np.random.choice(categories, n_samples, p=probs)
+        if task_type == 'classification':
+            # Rule-based recommendations
+            if linearity == 'linear' or n_features > 50:
+                recommendations.append({
+                    'model': 'Logistic Regression',
+                    'reason': 'Good for linear/high-dimensional data',
+                    'priority': 1
+                })
+            
+            if n_samples < 1000:
+                recommendations.append({
+                    'model': 'Naive Bayes',
+                    'reason': 'Works well with small datasets',
+                    'priority': 2
+                })
+            
+            if linearity == 'nonlinear' or n_samples > 1000:
+                recommendations.append({
+                    'model': 'Random Forest',
+                    'reason': 'Handles non-linear patterns well',
+                    'priority': 1
+                })
+            
+            if n_features < 20 and n_samples < 10000:
+                recommendations.append({
+                    'model': 'SVM',
+                    'reason': 'Effective for complex boundaries',
+                    'priority': 2
+                })
+            
+            recommendations.append({
+                'model': 'Decision Tree',
+                'reason': 'Interpretable and easy to understand',
+                'priority': 3
+            })
+            
+        elif task_type == 'clustering':
+            recommendations.append({
+                'model': 'K-Means',
+                'reason': 'Standard clustering algorithm',
+                'priority': 1
+            })
         
-        return pd.DataFrame(data)
+        elif task_type == 'regression':
+            recommendations.append({
+                'model': 'Linear Regression',
+                'reason': 'Baseline for regression tasks',
+                'priority': 1
+            })
+        
+        # Sort by priority and remove duplicates
+        seen = set()
+        unique_recs = []
+        for rec in sorted(recommendations, key=lambda x: x['priority']):
+            if rec['model'] not in seen:
+                seen.add(rec['model'])
+                unique_recs.append(rec)
+        
+        return unique_recs
     
     @staticmethod
-    def add_noise(df, noise_level=0.05, columns=None):
-        """Add Gaussian noise to numerical columns"""
-        df_noisy = df.copy()
+    def get_model_instances(model_names):
+        """Get actual model instances for training"""
+        model_map = {
+            'Logistic Regression': LogisticRegression(max_iter=1000, random_state=42),
+            'Naive Bayes': GaussianNB(),
+            'SVM': SVC(random_state=42),
+            'Decision Tree': DecisionTreeClassifier(random_state=42),
+            'Random Forest': RandomForestClassifier(random_state=42, n_estimators=100),
+            'K-Means': KMeans(n_clusters=3, random_state=42)
+        }
         
-        if columns is None:
-            columns = df.select_dtypes(include=[np.number]).columns
+        models = {}
+        for name in model_names:
+            if name in model_map:
+                models[name] = model_map[name]
         
-        for col in columns:
-            noise = np.random.normal(0, noise_level * df[col].std(), len(df))
-            df_noisy[col] = df[col] + noise
-        
-        return df_noisy
+        return models
