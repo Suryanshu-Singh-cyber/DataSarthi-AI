@@ -48,3 +48,9 @@ ram = st.slider("RAM (GB)", 2, 32, 8)
 if st.button("Check Compatibility"):
     result = check_system(rows, cols, ram)
     st.write(result)
+
+from modules.recommender import recommend_model
+
+if st.button("Recommend Model"):
+    model = recommend_model(rows, cols)
+    st.write("Recommended Model:", model)
