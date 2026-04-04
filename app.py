@@ -16,3 +16,18 @@ if st.button("Generate Data"):
 
     csv = df.to_csv(index=False).encode('utf-8')
     st.download_button("Download CSV", csv, "synthetic_data.csv")
+
+from modules.data_analyzer import analyze_data
+
+st.header("📊 Dataset Analyzer")
+
+uploaded_file = st.file_uploader("Upload CSV", type=["csv"])
+
+if uploaded_file:
+    df = pd.read_csv(uploaded_file)
+    st.write(df.head())
+
+    report = analyze_data(df)
+
+    st.write("Shape:", report['shape'])
+    st.write("Missing Values:", report['missing'])
