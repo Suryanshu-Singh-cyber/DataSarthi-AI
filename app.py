@@ -38,3 +38,13 @@ if uploaded_file:
     if st.button("Train Models"):
         results = train_models(df)
         st.write(results)
+
+from modules.system_checker import check_system
+
+st.header("⚙️ System Checker")
+
+ram = st.slider("RAM (GB)", 2, 32, 8)
+
+if st.button("Check Compatibility"):
+    result = check_system(rows, cols, ram)
+    st.write(result)
