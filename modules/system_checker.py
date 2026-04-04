@@ -52,6 +52,7 @@ class SystemCompatibilityChecker:
         return {
             'compatible': compatible,
             'estimated_memory_gb': round(estimated_memory_gb, 2),
+            'estimated_memory_mb': round(estimated_memory_mb, 2),
             'available_ram_gb': round(available_ram_gb, 2),
             'memory_message': memory_msg,
             'cpu_message': cpu_msg,
@@ -67,15 +68,37 @@ class SystemCompatibilityChecker:
         estimated_mb = SystemCompatibilityChecker.estimate_memory_usage(dataset_rows, dataset_cols)
         
         if estimated_mb > 500:  # >500MB
-            suggestions.append("Consider using chunking or sampling")
+            suggestions.append("💡 Consider using chunking or sampling")
         
         if dataset_cols > 50:
-            suggestions.append("Apply dimensionality reduction (PCA)")
+            suggestions.append("💡 Apply dimensionality reduction (PCA)")
         
         if dataset_rows > 100000:
-            suggestions.append("Use incremental learning or use smaller sample")
+            suggestions.append("💡 Use incremental learning or use smaller sample")
         
         if estimated_mb / 1024 > ram_gb * 0.5:
-            suggestions.append("Reduce precision (float64 → float32)")
+            suggestions.append("💡 Reduce precision (float64 → float32)")
+        
+        if dataset_rows > 50000:
+            suggestions.append("💡 Consider using a subset of your data for initial experiments")
         
         return suggestions
+
+# Backward compatibility function
+def check_system(ram_gb, cpu_cores, dataset_size_mb):
+    """Simple function interface for backward compatibility"""
+    # Estimate rows and columns from size (rough approximation)
+    estimated_rows = int(dataset_size_mb * 1024 * 1024 / (8 * 10))  # Assume 10 columns
+    result = SystemCompatibilityChecker.check_compatibility(
+        ram_gb, cpu_cores, estimated_rows, 10
+    )
+    
+    # Adapt the output for simple interface
+    if result['compatible']:
+        status = "✅ Compatible"
+        message = result['memory_message']
+    else:
+        status = "⚠️ May be too large"
+        message = result['memory_message']
+    
+    return {'status': status, 'message': message}
