@@ -1,7 +1,19 @@
 import streamlit as st
 
+st.set_page_config(page_title="DataSarthi AI", layout="wide")
+
 st.title("🧠 DataSarthi AI")
-st.write("Your Intelligent Dataset Assistant 🚀")
+st.markdown("### Your Intelligent Dataset Assistant 🚀")
+
+menu = st.sidebar.selectbox(
+    "Select Feature",
+    ["Home", "Generate Data", "Analyze Data", "Train Models", "System Checker", "Model Recommendation"]
+)
+if menu == "Home":
+    st.write("Welcome to DataSarthi AI")
+
+st.sidebar.info("Built by Suryanshu Singh 🚀")
+st.sidebar.success("4th Semester ML Project")
 
 from modules.data_generator import generate_data
 
