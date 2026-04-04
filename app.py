@@ -4,10 +4,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.datasets import load_iris, load_breast_cancer, load_wine
-import plotly.express as px
-import plotly.graph_objects as go
 from io import BytesIO
 import base64
+
+# Try importing plotly with fallback
+try:
+    import plotly.express as px
+    import plotly.graph_objects as go
+    PLOTLY_AVAILABLE = True
+except ImportError:
+    PLOTLY_AVAILABLE = False
+    st.warning("Plotly not installed. Some visualizations will use matplotlib instead.")
 
 # Import modules
 from modules.dataset_finder import DatasetFinder
@@ -17,6 +24,8 @@ from modules.system_checker import SystemCompatibilityChecker
 from modules.preprocessor import DataPreprocessor
 from modules.model_recommender import ModelRecommender
 from modules.model_trainer import ModelTrainer
+
+# Rest of your imports remain the same...
 
 # Page configuration
 st.set_page_config(
