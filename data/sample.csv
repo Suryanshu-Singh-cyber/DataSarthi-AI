@@ -1,1 +1,6 @@
-
+name,description,type,samples,features,source
+Iris,Classic flower classification dataset,Classification,150,4,sklearn
+Breast Cancer,Breast cancer diagnosis dataset,Classification,569,30,sklearn
+Wine,Wine classification dataset,Classification,178,13,sklearn
+Diabetes,Diabetes progression dataset,Regression,442,10,sklearn
+Digits,Handwritten digits recognition,Classification,1797,64,sklearn
