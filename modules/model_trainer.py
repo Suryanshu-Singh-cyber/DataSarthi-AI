@@ -1,22 +1,36 @@
+# modules/model_trainer.py
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.model_selection import train_test_split
 from sklearn.metrics import (accuracy_score, precision_score, recall_score, 
-                           f1_score, confusion_matrix, classification_report)
+                           f1_score, mean_squared_error, r2_score, mean_absolute_error)
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LogisticRegression
 from sklearn.naive_bayes import GaussianNB
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import StandardScaler, LabelEncoder
 
 class ModelTrainer:
     
     def __init__(self, df, target_col):
-        self.df = df
+        """
+        Initialize the model trainer
+        
+        Parameters:
+        df: pandas DataFrame with features and target
+        target_col: name of the target column
+        """
+        self.df = df.copy()
         self.target_col = target_col
-        self.X = df.drop(columns=[target_col])
-        self.y = df[target_col]
+        
+        # Separate features and target
+        if target_col in df.columns:
+            self.X = df.drop(columns=[target_col])
+            self.y = df[target_col]
+        else:
+            raise ValueError(f"Target column '{target_col}' not found in dataframe")
         
         # Check if classification or regression
         if self.y.dtype == 'object' or len(self.y.unique()) < 20:
@@ -24,21 +38,32 @@ class ModelTrainer:
         else:
             self.task_type = 'regression'
         
+        # Handle categorical features
+        self.X = pd.get_dummies(self.X)
+        
+        # Encode target if needed
+        if self.y.dtype == 'object':
+            self.label_encoder = LabelEncoder()
+            self.y = self.label_encoder.fit_transform(self.y)
+        
+        # Scale features
+        self.scaler = StandardScaler()
+        self.X_scaled = self.scaler.fit_transform(self.X)
+        
     def prepare_data(self, test_size=0.2, random_state=42):
         """Split data into train and test sets"""
-        return train_test_split(self.X, self.y, test_size=test_size, random_state=random_state)
+        return train_test_split(self.X_scaled, self.y, test_size=test_size, random_state=random_state)
     
     def apply_pca(self, n_components=None, variance_threshold=0.95):
         """Apply PCA for dimensionality reduction"""
         if n_components is None:
-            # Determine number of components to explain variance_threshold variance
             pca_temp = PCA()
-            pca_temp.fit(self.X)
+            pca_temp.fit(self.X_scaled)
             cumsum = np.cumsum(pca_temp.explained_variance_ratio_)
             n_components = np.argmax(cumsum >= variance_threshold) + 1
         
-        pca = PCA(n_components=min(n_components, self.X.shape[1]))
-        X_pca = pca.fit_transform(self.X)
+        pca = PCA(n_components=min(n_components, self.X_scaled.shape[1]))
+        X_pca = pca.fit_transform(self.X_scaled)
         
         return X_pca, pca
     
@@ -55,7 +80,6 @@ class ModelTrainer:
                 'f1_score': f1_score(y_test, y_pred, average='weighted', zero_division=0)
             }
         else:
-            from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
             metrics = {
                 'mse': mean_squared_error(y_test, y_pred),
                 'rmse': np.sqrt(mean_squared_error(y_test, y_pred)),
@@ -66,8 +90,7 @@ class ModelTrainer:
         return {
             'model': model,
             'predictions': y_pred,
-            'metrics': metrics,
-            'confusion_matrix': confusion_matrix(y_test, y_pred) if self.task_type == 'classification' else None
+            'metrics': metrics
         }
     
     def train_multiple_models(self, models_dict, use_pca=False, pca_components=None):
@@ -90,12 +113,30 @@ class ModelTrainer:
         # Train each model
         for model_name, model in models_dict.items():
             try:
-                result = self.train_model(model, X_train, X_test, y_train, y_test)
-                results[model_name] = result
+                # Initialize model if None was passed
+                if model is None:
+                    model = self._get_default_model(model_name)
+                
+                if model is not None:
+                    result = self.train_model(model, X_train, X_test, y_train, y_test)
+                    results[model_name] = result
+                else:
+                    results[model_name] = {'error': f"Model {model_name} not recognized"}
             except Exception as e:
                 results[model_name] = {'error': str(e)}
         
         return results
+    
+    def _get_default_model(self, model_name):
+        """Get default model instance by name"""
+        models = {
+            'Logistic Regression': LogisticRegression(max_iter=1000, random_state=42),
+            'Naive Bayes': GaussianNB(),
+            'SVM': SVC(random_state=42),
+            'Decision Tree': DecisionTreeClassifier(random_state=42),
+            'Random Forest': RandomForestClassifier(random_state=42, n_estimators=100)
+        }
+        return models.get(model_name)
     
     def get_best_model(self, results, metric='accuracy'):
         """Get the best performing model"""
@@ -119,30 +160,56 @@ class ModelTrainer:
             }
         return None
 
-# Backward compatibility functions
+
+# ========== BACKWARD COMPATIBILITY FUNCTIONS ==========
+
 def train_models(X, y, models=None):
-    """Simple function interface for backward compatibility"""
-    if models is None or not models:
-        models = {
-            'Logistic Regression': LogisticRegression(max_iter=1000),
-            'Random Forest': RandomForestClassifier(n_estimators=100)
-        }
+    """
+    Simple function interface for backward compatibility
     
+    Parameters:
+    X: feature matrix (numpy array or DataFrame)
+    y: target values
+    models: dict of model name to model instance (or None for defaults)
+    """
     # Create a temporary dataframe
-    temp_df = pd.DataFrame(X)
-    if len(temp_df.columns) != X.shape[1]:
-        # X is already numpy array
-        pass
+    if isinstance(X, pd.DataFrame):
+        temp_df = X.copy()
+    else:
+        temp_df = pd.DataFrame(X)
     
-    trainer = ModelTrainer(pd.DataFrame(X), 'temp_target')
-    trainer.y = y
-    trainer.X = X
-    trainer.task_type = 'classification'
+    temp_df['__target__'] = y
     
-    return trainer.train_multiple_models(models)
+    # Create trainer
+    trainer = ModelTrainer(temp_df, '__target__')
+    
+    # Get models to train
+    if models is None:
+        models_to_train = {
+            'Logistic Regression': LogisticRegression(max_iter=1000, random_state=42),
+            'Random Forest': RandomForestClassifier(random_state=42, n_estimators=100)
+        }
+    else:
+        models_to_train = {}
+        for name, model in models.items():
+            if model is None:
+                model = trainer._get_default_model(name)
+            if model is not None:
+                models_to_train[name] = model
+    
+    # Train models
+    results = trainer.train_multiple_models(models_to_train)
+    
+    return results
 
 def apply_pca(X, n_components=None):
     """Apply PCA for dimensionality reduction"""
-    pca = PCA(n_components=n_components if n_components else min(X.shape[1], 10))
-    X_pca = pca.fit_transform(X)
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+    
+    if n_components is None:
+        n_components = min(X_scaled.shape[1], 10)
+    
+    pca = PCA(n_components=n_components)
+    X_pca = pca.fit_transform(X_scaled)
     return X_pca, pca
