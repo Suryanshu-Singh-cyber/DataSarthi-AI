@@ -618,103 +618,169 @@ elif page == "💻 System Checker":
         st.rerun()
 
 # ========== MODEL TRAINER ==========
+# ==================== MODEL TRAINER ====================
 elif page == "🤖 Model Trainer":
     st.markdown('<h2 class="sub-header">🤖 Model Training & Comparison</h2>', unsafe_allow_html=True)
     
     if st.session_state.df is not None:
         df = st.session_state.df
         
-        # Select target column
-        target_col = st.selectbox("Select Target Column", df.columns)
+        # Display dataset info
+        st.info(f"📊 Dataset: {df.shape[0]} rows, {df.shape[1]} columns")
         
-        # Options
-        st.markdown("### Training Options")
+        # Select target column
+        target_col = st.selectbox("🎯 Select Target Column", df.columns)
+        
+        # Model selection
+        st.markdown("### 🤖 Select Models to Train")
+        
         col1, col2 = st.columns(2)
         
         with col1:
-            use_pca = st.checkbox("Apply PCA (Dimensionality Reduction)")
-            if use_pca:
-                max_components = min(20, df.shape[1] - 1)
-                n_components = st.slider("Number of Components", 2, max_components, min(5, max_components))
-        
-        with col2:
             models_to_train = st.multiselect(
-                "Select Models to Train",
+                "Choose ML Algorithms",
                 ['Logistic Regression', 'Naive Bayes', 'SVM', 'Decision Tree', 'Random Forest'],
-                default=['Random Forest', 'Logistic Regression']
+                default=['Random Forest', 'Logistic Regression', 'SVM']
             )
         
-        if st.button("🚀 Train Models", type="primary"):
-            if not models_to_train:
-                st.error("Please select at least one model to train!")
+        with col2:
+            use_pca = st.checkbox("📉 Apply PCA (Dimensionality Reduction)")
+            if use_pca:
+                max_components = min(20, df.shape[1] - 1)
+                n_components = st.slider("Number of PCA Components", 2, max_components, min(5, max_components))
             else:
-                with st.spinner("Training models... This may take a moment."):
+                n_components = None
+        
+        # Test size
+        test_size = st.slider("Test Set Size", 0.1, 0.4, 0.2, 0.05)
+        
+        # Train button
+        if st.button("🚀 Train Models", type="primary", use_container_width=True):
+            if not models_to_train:
+                st.error("❌ Please select at least one model to train!")
+            else:
+                with st.spinner("🔄 Training models... Please wait..."):
                     try:
-                        # Import ModelTrainer
-                        from modules.model_trainer import ModelTrainer, train_models
-                        
-                        # Create trainer instance
+                        # Create trainer
+                        from modules.model_trainer import ModelTrainer
                         trainer = ModelTrainer(df, target_col)
                         
-                        # Prepare models dict
-                        models_dict = {name: None for name in models_to_train}
-                        
                         # Train models
-                        results = trainer.train_multiple_models(models_dict, use_pca=use_pca)
+                        results = trainer.train_multiple_models(
+                            model_names=models_to_train,
+                            use_pca=use_pca,
+                            pca_components=n_components,
+                            test_size=test_size
+                        )
                         
                         # Display results
-                        st.markdown("### 📊 Model Performance Comparison")
+                        st.markdown("---")
+                        st.markdown("## 📊 Model Performance Comparison")
                         
-                        # Create results dataframe
-                        results_data = []
-                        for model_name, result in results.items():
-                            if model_name != 'pca_info' and 'metrics' in result:
+                        # Create comparison dataframe
+                        comparison_data = []
+                        for model_name, metrics in results.items():
+                            if 'error' not in metrics:
                                 row = {'Model': model_name}
-                                row.update(result['metrics'])
-                                results_data.append(row)
+                                for metric_name, value in metrics.items():
+                                    if isinstance(value, (int, float)):
+                                        if metric_name in ['accuracy', 'precision', 'recall', 'f1_score', 'r2_score']:
+                                            row[metric_name] = f"{value*100:.2f}%"
+                                        else:
+                                            row[metric_name] = f"{value:.4f}"
+                                    else:
+                                        row[metric_name] = value
+                                comparison_data.append(row)
                         
-                        if results_data:
-                            results_df = pd.DataFrame(results_data)
-                            
-                            # Format percentage columns
-                            for col in ['accuracy', 'precision', 'recall', 'f1_score']:
-                                if col in results_df.columns:
-                                    results_df[col] = results_df[col].apply(lambda x: f"{x*100:.2f}%" if isinstance(x, (int, float)) else x)
-                            
-                            st.dataframe(results_df)
+                        if comparison_data:
+                            comparison_df = pd.DataFrame(comparison_data)
+                            st.dataframe(comparison_df, use_container_width=True)
                             
                             # Best model
-                            best = trainer.get_best_model(results)
+                            best = trainer.get_best_model('accuracy')
                             if best:
                                 st.success(f"🏆 **Best Model:** {best['best_model']} with {best['metric']} = {best['best_score']*100:.2f}%")
                             
-                            # Visualization
-                            fig, ax = plt.subplots(figsize=(10, 6))
-                            accuracies = []
+                            # Visualization - Accuracy Chart
+                            st.markdown("### 📈 Performance Visualization")
+                            
+                            # Prepare data for chart
+                            chart_data = []
                             model_names = []
-                            for model_name, result in results.items():
-                                if model_name != 'pca_info' and 'metrics' in result and 'accuracy' in result['metrics']:
+                            accuracies = []
+                            
+                            for model_name, metrics in results.items():
+                                if 'accuracy' in metrics:
                                     model_names.append(model_name)
-                                    accuracies.append(result['metrics']['accuracy'] * 100)
+                                    accuracies.append(metrics['accuracy'] * 100)
                             
                             if accuracies:
-                                bars = ax.bar(model_names, accuracies, color=['#667eea', '#764ba2', '#f39c12', '#27ae60', '#e74c3c'][:len(model_names)])
-                                ax.set_ylabel('Accuracy (%)')
-                                ax.set_title('Model Accuracy Comparison')
+                                fig, ax = plt.subplots(figsize=(10, 6))
+                                colors = ['#667eea', '#764ba2', '#f39c12', '#27ae60', '#e74c3c']
+                                bars = ax.bar(model_names, accuracies, color=colors[:len(model_names)])
+                                ax.set_ylabel('Accuracy (%)', fontsize=12)
+                                ax.set_title('Model Accuracy Comparison', fontsize=14, fontweight='bold')
                                 ax.set_ylim(0, 105)
+                                ax.axhline(y=90, color='green', linestyle='--', alpha=0.5, label='90% Threshold')
+                                ax.legend()
+                                
+                                # Add value labels on bars
                                 for bar, acc in zip(bars, accuracies):
-                                    ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1, f'{acc:.1f}%', ha='center', fontweight='bold')
-                                plt.xticks(rotation=45)
+                                    ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1, 
+                                           f'{acc:.1f}%', ha='center', fontweight='bold', fontsize=10)
+                                
+                                plt.xticks(rotation=45, ha='right')
+                                plt.tight_layout()
                                 st.pyplot(fig)
-                        
-                        if use_pca and 'pca_info' in results:
-                            st.info(f"📊 PCA applied: Reduced features to {results['pca_info']['n_components']} components")
                             
+                            # Individual Model cards
+                            st.markdown("### 📋 Individual Model Performance")
+                            
+                            cols = st.columns(min(3, len(comparison_data)))
+                            for idx, row in enumerate(comparison_data[:6]):
+                                with cols[idx % 3]:
+                                    with st.container():
+                                        st.markdown(f"""
+                                        <div style="background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%); 
+                                                    padding: 1rem; border-radius: 10px; margin: 0.5rem 0;">
+                                            <h4 style="text-align: center;">{row['Model']}</h4>
+                                            <hr>
+                                        """, unsafe_allow_html=True)
+                                        for key, value in row.items():
+                                            if key != 'Model':
+                                                st.metric(key.replace('_', ' ').title(), value)
+                                        st.markdown("</div>", unsafe_allow_html=True)
+                        
+                        # PCA info
+                        if use_pca and hasattr(trainer, 'pca_applied') and trainer.pca_applied:
+                            st.info(f"📊 PCA Applied: Reduced features to {trainer.pca_info['n_components']} components")
+                            st.info(f"📈 Explained Variance: {trainer.pca_info['explained_variance']*100:.1f}%")
+                        
+                        # Download results
+                        if comparison_data:
+                            st.markdown("---")
+                            results_df = pd.DataFrame(comparison_data)
+                            csv = results_df.to_csv(index=False).encode('utf-8')
+                            st.download_button(
+                                label="📥 Download Results as CSV",
+                                data=csv,
+                                file_name="model_comparison_results.csv",
+                                mime="text/csv"
+                            )
+                        
                     except Exception as e:
-                        st.error(f"Training error: {str(e)}")
-                        st.info("Try selecting a different target column or check your data")
+                        st.error(f"❌ Training Error: {str(e)}")
+                        st.info("💡 Tips:\n- Make sure your target column has at least 2 unique values\n- Try selecting fewer models\n- Check if your data has enough samples")
     else:
         st.warning("⚠️ Please load or generate a dataset first!")
+        st.info("Go to 'Dataset Finder' or 'Synthetic Generator' to create/load data.")
+
+    # Back to home button
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        if st.button("🏠 Back to Home", use_container_width=True):
+            st.session_state.page = "🏠 Home"
+            st.rerun()
 # ==================== DASHBOARD ====================
 elif page == "📈 Dashboard":
     st.markdown('<h2 class="section-header">📈 Complete Dashboard</h2>', unsafe_allow_html=True)
