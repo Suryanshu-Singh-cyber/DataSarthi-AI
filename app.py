@@ -618,7 +618,7 @@ elif page == "💻 System Checker":
         st.rerun()
 
 # ========== MODEL TRAINER ==========
-elif menu == "🤖 Model Trainer":
+elif page == "🤖 Model Trainer":
     st.markdown('<h2 class="sub-header">🤖 Model Training & Comparison</h2>', unsafe_allow_html=True)
     
     if st.session_state.df is not None:
