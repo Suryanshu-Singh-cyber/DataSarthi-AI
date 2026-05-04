@@ -528,12 +528,12 @@ elif page == "✨ Synthetic Generator":
                 st.dataframe(df.head())
                 
                 # Download button
-                csv = df.to_csv(index=False).encode('utf-8')
-               # ✅ CORRECT - Use 'file_name' not 'filename'
+                # ✅ CORRECT - No try block
+csv = df.to_csv(index=False).encode('utf-8')
 st.download_button(
     label="📥 Download CSV",
     data=csv,
-    file_name="synthetic_data.csv",  # ← CORRECT parameter name
+    file_name="synthetic_data.csv",
     mime="text/csv"
 )
             except Exception as e:
