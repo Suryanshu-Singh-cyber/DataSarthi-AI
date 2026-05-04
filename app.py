@@ -486,11 +486,9 @@ elif page == "📊 Dataset Finder":
         st.session_state.page = "🏠 Home"
         st.rerun()
 
-# ==================== SYNTHETIC GENERATOR ====================
-elif page == "✨ Synthetic Generator":
-    st.markdown('<h2 class="section-header">✨ Synthetic Data Generator</h2>', unsafe_allow_html=True)
-    
-    st.info("🎲 Generate synthetic datasets with custom parameters for testing and experimentation")
+# ========== SYNTHETIC GENERATOR ==========
+elif menu == "✨ Synthetic Generator":
+    st.markdown('<h2 class="sub-header">✨ Synthetic Data Generator</h2>', unsafe_allow_html=True)
     
     col1, col2 = st.columns(2)
     
@@ -505,44 +503,38 @@ elif page == "✨ Synthetic Generator":
     
     if st.button("🚀 Generate Dataset", type="primary"):
         with st.spinner("Generating synthetic data..."):
-            # Import generator
-            try:
-                from modules.data_generator import generate_data
-                
-                if data_type == "Classification":
-                    df = generate_data(
-                        dataset_type="classification",
-                        n_samples=n_samples,
-                        n_features=n_features
-                    )
-                else:
-                    df = generate_data(
-                        dataset_type="regression",
-                        n_samples=n_samples,
-                        n_features=n_features,
-                        noise=noise
-                    )
-                
-                st.session_state.df = df
-                st.success(f"✅ Generated {n_samples} samples with {n_features} features!")
-                st.dataframe(df.head())
-                
-                # Download button
-                # ✅ CORRECT - No try block
-csv = df.to_csv(index=False).encode('utf-8')
-st.download_button(
-    label="📥 Download CSV",
-    data=csv,
-    file_name="synthetic_data.csv",
-    mime="text/csv"
-)
-            except Exception as e:
-                st.error(f"Error generating data: {str(e)}")
+            from modules.data_generator import generate_data
+            
+            if data_type == "Classification":
+                df = generate_data(
+                    dataset_type="classification",
+                    n_samples=n_samples,
+                    n_features=n_features
+                )
+            else:
+                df = generate_data(
+                    dataset_type="regression",
+                    n_samples=n_samples,
+                    n_features=n_features,
+                    noise=noise
+                )
+            
+            st.session_state.df = df
+            st.success(f"✅ Generated {n_samples} samples with {n_features} features!")
+            st.dataframe(df.head())
+            
+            # Download button - NO try block needed
+            csv = df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📥 Download CSV",
+                data=csv,
+                file_name=f"synthetic_{data_type.lower()}_data.csv",
+                mime="text/csv"
+            )
     
     if st.button("🏠 Back to Home"):
         st.session_state.page = "🏠 Home"
         st.rerun()
-
 # ==================== DATASET ANALYZER ====================
 elif page == "🔍 Dataset Analyzer":
     st.markdown('<h2 class="section-header">📊 Dataset Analyzer</h2>', unsafe_allow_html=True)
