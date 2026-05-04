@@ -487,7 +487,7 @@ elif page == "📊 Dataset Finder":
         st.rerun()
 
 # ========== SYNTHETIC GENERATOR ==========
-elif menu == "✨ Synthetic Generator":
+elif page == "✨ Synthetic Generator":
     st.markdown('<h2 class="sub-header">✨ Synthetic Data Generator</h2>', unsafe_allow_html=True)
     
     col1, col2 = st.columns(2)
