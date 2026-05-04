@@ -2,7 +2,7 @@
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.linear_model import LogisticRegression
@@ -52,10 +52,16 @@ class ModelTrainer:
     def train_multiple_models(self, model_names, use_pca=False, pca_components=None, test_size=0.2):
         """Train multiple models and return comparison results"""
         
+        print(f"Training models: {model_names}")
+        print(f"X shape: {self.X_scaled.shape}, y shape: {self.y.shape}")
+        
         # Split data
+        stratify = self.y if self.task_type == 'classification' else None
         X_train, X_test, y_train, y_test = train_test_split(
-            self.X_scaled, self.y, test_size=test_size, random_state=42, stratify=self.y if self.task_type == 'classification' else None
+            self.X_scaled, self.y, test_size=test_size, random_state=42, stratify=stratify
         )
+        
+        print(f"Train shape: {X_train.shape}, Test shape: {X_test.shape}")
         
         # Apply PCA if requested
         if use_pca and X_train.shape[1] > 2:
@@ -85,6 +91,7 @@ class ModelTrainer:
         for name in model_names:
             if name in models:
                 try:
+                    print(f"Training {name}...")
                     model = models[name]
                     model.fit(X_train, y_train)
                     y_pred = model.predict(X_test)
@@ -102,6 +109,7 @@ class ModelTrainer:
                             'recall': round(recall, 4),
                             'f1_score': round(f1, 4)
                         }
+                        print(f"  Accuracy: {accuracy:.4f}")
                     else:
                         from sklearn.metrics import mean_squared_error, r2_score
                         mse = mean_squared_error(y_test, y_pred)
@@ -112,11 +120,14 @@ class ModelTrainer:
                             'rmse': round(np.sqrt(mse), 4),
                             'r2_score': round(r2, 4)
                         }
+                        print(f"  R2 Score: {r2:.4f}")
                         
                 except Exception as e:
+                    print(f"Error training {name}: {str(e)}")
                     results[name] = {'error': str(e)}
         
         self.results = results
+        print(f"Results: {results}")
         return results
     
     def get_best_model(self, metric='accuracy'):
@@ -154,9 +165,7 @@ class ModelTrainer:
 # Simple function for backward compatibility
 def train_models(X, y, models_dict):
     """Simple function interface"""
-    # Create temporary dataframe
     temp_df = pd.DataFrame(X)
     temp_df['__target__'] = y
-    
     trainer = ModelTrainer(temp_df, '__target__')
     return trainer.train_multiple_models(list(models_dict.keys()))
