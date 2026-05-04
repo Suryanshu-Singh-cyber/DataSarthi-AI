@@ -625,56 +625,104 @@ elif page == "💻 System Checker":
         st.session_state.page = "🏠 Home"
         st.rerun()
 
-# ==================== MODEL TRAINER ====================
-elif page == "🤖 Model Trainer":
-    st.markdown('<h2 class="section-header">🤖 Model Training & Comparison</h2>', unsafe_allow_html=True)
+# ========== MODEL TRAINER ==========
+elif menu == "🤖 Model Trainer":
+    st.markdown('<h2 class="sub-header">🤖 Model Training & Comparison</h2>', unsafe_allow_html=True)
     
     if st.session_state.df is not None:
         df = st.session_state.df
         
+        # Select target column
         target_col = st.selectbox("Select Target Column", df.columns)
         
-        # Prepare data
-        X = df.drop(columns=[target_col])
-        y = df[target_col]
+        # Options
+        st.markdown("### Training Options")
+        col1, col2 = st.columns(2)
         
-        # Handle categorical
-        X = pd.get_dummies(X)
-        if y.dtype == 'object':
-            y = y.astype('category').cat.codes
+        with col1:
+            use_pca = st.checkbox("Apply PCA (Dimensionality Reduction)")
+            if use_pca:
+                max_components = min(20, df.shape[1] - 1)
+                n_components = st.slider("Number of Components", 2, max_components, min(5, max_components))
         
-        models_to_train = st.multiselect(
-            "Select Models",
-            ['Logistic Regression', 'Naive Bayes', 'SVM', 'Decision Tree', 'Random Forest'],
-            default=['Random Forest']
-        )
+        with col2:
+            models_to_train = st.multiselect(
+                "Select Models to Train",
+                ['Logistic Regression', 'Naive Bayes', 'SVM', 'Decision Tree', 'Random Forest'],
+                default=['Random Forest', 'Logistic Regression']
+            )
         
         if st.button("🚀 Train Models", type="primary"):
-            if models_to_train:
-                with st.spinner("Training models..."):
+            if not models_to_train:
+                st.error("Please select at least one model to train!")
+            else:
+                with st.spinner("Training models... This may take a moment."):
                     try:
-                        from modules.model_trainer import train_models
-                        selected_models = {name: None for name in models_to_train}
-                        results = train_models(X, y, selected_models)
+                        # Import ModelTrainer
+                        from modules.model_trainer import ModelTrainer, train_models
                         
-                        results_df = pd.DataFrame(results).T
-                        if 'accuracy' in results_df.columns:
-                            st.dataframe(results_df[['accuracy', 'precision', 'recall', 'f1_score']])
+                        # Create trainer instance
+                        trainer = ModelTrainer(df, target_col)
+                        
+                        # Prepare models dict
+                        models_dict = {name: None for name in models_to_train}
+                        
+                        # Train models
+                        results = trainer.train_multiple_models(models_dict, use_pca=use_pca)
+                        
+                        # Display results
+                        st.markdown("### 📊 Model Performance Comparison")
+                        
+                        # Create results dataframe
+                        results_data = []
+                        for model_name, result in results.items():
+                            if model_name != 'pca_info' and 'metrics' in result:
+                                row = {'Model': model_name}
+                                row.update(result['metrics'])
+                                results_data.append(row)
+                        
+                        if results_data:
+                            results_df = pd.DataFrame(results_data)
+                            
+                            # Format percentage columns
+                            for col in ['accuracy', 'precision', 'recall', 'f1_score']:
+                                if col in results_df.columns:
+                                    results_df[col] = results_df[col].apply(lambda x: f"{x*100:.2f}%" if isinstance(x, (int, float)) else x)
+                            
+                            st.dataframe(results_df)
                             
                             # Best model
-                            best = results_df['accuracy'].idxmax()
-                            st.success(f"🏆 Best Model: {best} with accuracy {results_df.loc[best, 'accuracy']:.4f}")
+                            best = trainer.get_best_model(results)
+                            if best:
+                                st.success(f"🏆 **Best Model:** {best['best_model']} with {best['metric']} = {best['best_score']*100:.2f}%")
+                            
+                            # Visualization
+                            fig, ax = plt.subplots(figsize=(10, 6))
+                            accuracies = []
+                            model_names = []
+                            for model_name, result in results.items():
+                                if model_name != 'pca_info' and 'metrics' in result and 'accuracy' in result['metrics']:
+                                    model_names.append(model_name)
+                                    accuracies.append(result['metrics']['accuracy'] * 100)
+                            
+                            if accuracies:
+                                bars = ax.bar(model_names, accuracies, color=['#667eea', '#764ba2', '#f39c12', '#27ae60', '#e74c3c'][:len(model_names)])
+                                ax.set_ylabel('Accuracy (%)')
+                                ax.set_title('Model Accuracy Comparison')
+                                ax.set_ylim(0, 105)
+                                for bar, acc in zip(bars, accuracies):
+                                    ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1, f'{acc:.1f}%', ha='center', fontweight='bold')
+                                plt.xticks(rotation=45)
+                                st.pyplot(fig)
+                        
+                        if use_pca and 'pca_info' in results:
+                            st.info(f"📊 PCA applied: Reduced features to {results['pca_info']['n_components']} components")
+                            
                     except Exception as e:
                         st.error(f"Training error: {str(e)}")
-            else:
-                st.warning("Please select at least one model")
+                        st.info("Try selecting a different target column or check your data")
     else:
         st.warning("⚠️ Please load or generate a dataset first!")
-    
-    if st.button("🏠 Back to Home"):
-        st.session_state.page = "🏠 Home"
-        st.rerun()
-
 # ==================== DASHBOARD ====================
 elif page == "📈 Dashboard":
     st.markdown('<h2 class="section-header">📈 Complete Dashboard</h2>', unsafe_allow_html=True)
