@@ -628,8 +628,16 @@ elif page == "🤖 Model Trainer":
         # Display dataset info
         st.info(f"📊 Dataset: {df.shape[0]} rows, {df.shape[1]} columns")
         
+        # Show first few rows for reference
+        with st.expander("🔍 Preview Dataset"):
+            st.dataframe(df.head())
+        
         # Select target column
         target_col = st.selectbox("🎯 Select Target Column", df.columns)
+        
+        # Show target column info
+        unique_values = df[target_col].nunique()
+        st.caption(f"Target column '{target_col}' has {unique_values} unique values")
         
         # Model selection
         st.markdown("### 🤖 Select Models to Train")
@@ -640,7 +648,7 @@ elif page == "🤖 Model Trainer":
             models_to_train = st.multiselect(
                 "Choose ML Algorithms",
                 ['Logistic Regression', 'Naive Bayes', 'SVM', 'Decision Tree', 'Random Forest'],
-                default=['Random Forest', 'Logistic Regression', 'SVM']
+                default=['Random Forest', 'Logistic Regression']
             )
         
         with col2:
@@ -661,8 +669,10 @@ elif page == "🤖 Model Trainer":
             else:
                 with st.spinner("🔄 Training models... Please wait..."):
                     try:
-                        # Create trainer
+                        # Import ModelTrainer
                         from modules.model_trainer import ModelTrainer
+                        
+                        # Create trainer
                         trainer = ModelTrainer(df, target_col)
                         
                         # Train models
@@ -673,107 +683,150 @@ elif page == "🤖 Model Trainer":
                             test_size=test_size
                         )
                         
-                        # Display results
-                        st.markdown("---")
-                        st.markdown("## 📊 Model Performance Comparison")
-                        
-                        # Create comparison dataframe
-                        comparison_data = []
-                        for model_name, metrics in results.items():
-                            if 'error' not in metrics:
-                                row = {'Model': model_name}
-                                for metric_name, value in metrics.items():
-                                    if isinstance(value, (int, float)):
-                                        if metric_name in ['accuracy', 'precision', 'recall', 'f1_score', 'r2_score']:
-                                            row[metric_name] = f"{value*100:.2f}%"
-                                        else:
-                                            row[metric_name] = f"{value:.4f}"
-                                    else:
-                                        row[metric_name] = value
-                                comparison_data.append(row)
-                        
-                        if comparison_data:
-                            comparison_df = pd.DataFrame(comparison_data)
-                            st.dataframe(comparison_df, use_container_width=True)
-                            
-                            # Best model
-                            best = trainer.get_best_model('accuracy')
-                            if best:
-                                st.success(f"🏆 **Best Model:** {best['best_model']} with {best['metric']} = {best['best_score']*100:.2f}%")
-                            
-                            # Visualization - Accuracy Chart
-                            st.markdown("### 📈 Performance Visualization")
-                            
-                            # Prepare data for chart
-                            chart_data = []
-                            model_names = []
-                            accuracies = []
-                            
-                            for model_name, metrics in results.items():
-                                if 'accuracy' in metrics:
-                                    model_names.append(model_name)
-                                    accuracies.append(metrics['accuracy'] * 100)
-                            
-                            if accuracies:
-                                fig, ax = plt.subplots(figsize=(10, 6))
-                                colors = ['#667eea', '#764ba2', '#f39c12', '#27ae60', '#e74c3c']
-                                bars = ax.bar(model_names, accuracies, color=colors[:len(model_names)])
-                                ax.set_ylabel('Accuracy (%)', fontsize=12)
-                                ax.set_title('Model Accuracy Comparison', fontsize=14, fontweight='bold')
-                                ax.set_ylim(0, 105)
-                                ax.axhline(y=90, color='green', linestyle='--', alpha=0.5, label='90% Threshold')
-                                ax.legend()
-                                
-                                # Add value labels on bars
-                                for bar, acc in zip(bars, accuracies):
-                                    ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1, 
-                                           f'{acc:.1f}%', ha='center', fontweight='bold', fontsize=10)
-                                
-                                plt.xticks(rotation=45, ha='right')
-                                plt.tight_layout()
-                                st.pyplot(fig)
-                            
-                            # Individual Model cards
-                            st.markdown("### 📋 Individual Model Performance")
-                            
-                            cols = st.columns(min(3, len(comparison_data)))
-                            for idx, row in enumerate(comparison_data[:6]):
-                                with cols[idx % 3]:
-                                    with st.container():
-                                        st.markdown(f"""
-                                        <div style="background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%); 
-                                                    padding: 1rem; border-radius: 10px; margin: 0.5rem 0;">
-                                            <h4 style="text-align: center;">{row['Model']}</h4>
-                                            <hr>
-                                        """, unsafe_allow_html=True)
-                                        for key, value in row.items():
-                                            if key != 'Model':
-                                                st.metric(key.replace('_', ' ').title(), value)
-                                        st.markdown("</div>", unsafe_allow_html=True)
-                        
-                        # PCA info
-                        if use_pca and hasattr(trainer, 'pca_applied') and trainer.pca_applied:
-                            st.info(f"📊 PCA Applied: Reduced features to {trainer.pca_info['n_components']} components")
-                            st.info(f"📈 Explained Variance: {trainer.pca_info['explained_variance']*100:.1f}%")
-                        
-                        # Download results
-                        if comparison_data:
+                        # Check if results are empty
+                        if not results:
+                            st.error("No results returned. Please check your data and try again.")
+                        else:
+                            # Display results
                             st.markdown("---")
-                            results_df = pd.DataFrame(comparison_data)
-                            csv = results_df.to_csv(index=False).encode('utf-8')
-                            st.download_button(
-                                label="📥 Download Results as CSV",
-                                data=csv,
-                                file_name="model_comparison_results.csv",
-                                mime="text/csv"
-                            )
+                            st.markdown("## 📊 Model Performance Comparison")
+                            
+                            # Create comparison dataframe
+                            comparison_data = []
+                            for model_name, metrics in results.items():
+                                if 'error' not in metrics:
+                                    row = {'Model': model_name}
+                                    for metric_name, value in metrics.items():
+                                        if isinstance(value, (int, float)):
+                                            if metric_name in ['accuracy', 'precision', 'recall', 'f1_score', 'r2_score']:
+                                                row[metric_name] = f"{value*100:.2f}%"
+                                            else:
+                                                row[metric_name] = f"{value:.4f}"
+                                        else:
+                                            row[metric_name] = value
+                                    comparison_data.append(row)
+                            
+                            if comparison_data:
+                                comparison_df = pd.DataFrame(comparison_data)
+                                
+                                # Display table
+                                st.dataframe(comparison_df, use_container_width=True)
+                                
+                                # Best model
+                                best = trainer.get_best_model('accuracy')
+                                if best:
+                                    st.success(f"🏆 **Best Model:** {best['best_model']} with {best['metric']} = {best['best_score']*100:.2f}%")
+                                
+                                # Visualization 1: Accuracy Bar Chart
+                                st.markdown("### 📈 Accuracy Comparison Chart")
+                                
+                                # Prepare data for chart
+                                chart_models = []
+                                chart_accuracies = []
+                                
+                                for model_name, metrics in results.items():
+                                    if 'accuracy' in metrics:
+                                        chart_models.append(model_name)
+                                        chart_accuracies.append(metrics['accuracy'] * 100)
+                                
+                                if chart_accuracies:
+                                    fig, ax = plt.subplots(figsize=(10, 6))
+                                    colors = ['#667eea', '#764ba2', '#f39c12', '#27ae60', '#e74c3c']
+                                    bars = ax.bar(chart_models, chart_accuracies, color=colors[:len(chart_models)])
+                                    ax.set_ylabel('Accuracy (%)', fontsize=12)
+                                    ax.set_title('Model Accuracy Comparison', fontsize=14, fontweight='bold')
+                                    ax.set_ylim(0, 105)
+                                    
+                                    # Add value labels
+                                    for bar, acc in zip(bars, chart_accuracies):
+                                        ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1, 
+                                               f'{acc:.1f}%', ha='center', fontweight='bold', fontsize=10)
+                                    
+                                    plt.xticks(rotation=45, ha='right')
+                                    plt.tight_layout()
+                                    st.pyplot(fig)
+                                
+                                # Visualization 2: Metrics Comparison
+                                st.markdown("### 📊 All Metrics Comparison")
+                                
+                                # Prepare multi-metric data
+                                metrics_data = []
+                                for model_name, metrics in results.items():
+                                    if 'accuracy' in metrics:
+                                        metrics_data.append({
+                                            'Model': model_name,
+                                            'Accuracy': metrics['accuracy'] * 100,
+                                            'Precision': metrics['precision'] * 100,
+                                            'Recall': metrics['recall'] * 100,
+                                            'F1 Score': metrics['f1_score'] * 100
+                                        })
+                                
+                                if metrics_data:
+                                    metrics_df = pd.DataFrame(metrics_data)
+                                    metrics_df_melted = metrics_df.melt(id_vars=['Model'], var_name='Metric', value_name='Score')
+                                    
+                                    fig2, ax2 = plt.subplots(figsize=(12, 6))
+                                    for model in metrics_df['Model'].unique():
+                                        model_data = metrics_df_melted[metrics_df_melted['Model'] == model]
+                                        ax2.bar(model_data['Metric'] + ' - ' + model, model_data['Score'], label=model)
+                                    
+                                    ax2.set_ylabel('Score (%)')
+                                    ax2.set_title('Complete Metrics Comparison')
+                                    ax2.set_ylim(0, 105)
+                                    plt.xticks(rotation=45, ha='right')
+                                    plt.legend()
+                                    plt.tight_layout()
+                                    st.pyplot(fig2)
+                                
+                                # Individual Model cards
+                                st.markdown("### 📋 Detailed Model Performance")
+                                
+                                # Create columns for cards
+                                cols = st.columns(min(3, len(comparison_data)))
+                                for idx, row in enumerate(comparison_data):
+                                    with cols[idx % 3]:
+                                        with st.container():
+                                            st.markdown(f"""
+                                            <div style="background: linear-gradient(135deg, #667eea10 0%, #764ba210 100%); 
+                                                        padding: 1rem; border-radius: 10px; margin: 0.5rem 0;
+                                                        border: 1px solid #e0e0e0;">
+                                                <h4 style="text-align: center; color: #667eea;">{row['Model']}</h4>
+                                                <hr style="margin: 0.5rem 0;">
+                                            """, unsafe_allow_html=True)
+                                            for key, value in row.items():
+                                                if key != 'Model':
+                                                    st.metric(key.replace('_', ' ').title(), value)
+                                            st.markdown("</div>", unsafe_allow_html=True)
+                                
+                                # PCA info
+                                if use_pca and hasattr(trainer, 'pca_applied') and trainer.pca_applied:
+                                    st.info(f"📊 PCA Applied: Reduced features to {trainer.pca_info['n_components']} components")
+                                    st.info(f"📈 Explained Variance: {trainer.pca_info['explained_variance']*100:.1f}%")
+                                
+                                # Download results
+                                st.markdown("---")
+                                results_df = pd.DataFrame(comparison_data)
+                                csv = results_df.to_csv(index=False).encode('utf-8')
+                                st.download_button(
+                                    label="📥 Download Results as CSV",
+                                    data=csv,
+                                    file_name="model_comparison_results.csv",
+                                    mime="text/csv",
+                                    use_container_width=True
+                                )
+                            else:
+                                st.warning("No valid results to display. Please check your model selections.")
                         
                     except Exception as e:
                         st.error(f"❌ Training Error: {str(e)}")
-                        st.info("💡 Tips:\n- Make sure your target column has at least 2 unique values\n- Try selecting fewer models\n- Check if your data has enough samples")
+                        st.info("💡 Troubleshooting Tips:\n"
+                               "- Make sure your target column has at least 2 unique values\n"
+                               "- Try selecting fewer models\n"
+                               "- Check if your data has enough samples (at least 10 rows)\n"
+                               "- For classification, target should have multiple classes")
     else:
         st.warning("⚠️ Please load or generate a dataset first!")
-        st.info("Go to 'Dataset Finder' or 'Synthetic Generator' to create/load data.")
+        st.info("Go to '📊 Dataset Finder' to load a dataset or '✨ Synthetic Generator' to create one.")
 
     # Back to home button
     col1, col2, col3 = st.columns([1, 2, 1])
